@@ -1,0 +1,185 @@
+B main
+
+// func builder(X0 array, X1 length)
+builder:
+	STUR X1, [X0, #0]
+	ADDI X0, X0, #8
+	SUBIS X1, X1, #1
+	SUBS X1, X1, XZR
+	B.NE builder
+	BR LR
+
+// func swap(X0 array, X1 i, X2 j)
+// Swaps values at indexes i and j in array.
+swap:
+	LSL X1, X1, #3
+	LSL X2, X2, #3
+	ADD X1, X0, X1
+	ADD X0, X0, X2
+	LDUR X9, [X1, #0]
+	LDUR X10, [X0, #0]
+	STUR X9, [X0, #0]
+	STUR X10, [X1, #0]
+	BR LR
+
+// func X0 smallest(X0 array, X1 start inclusive, X2 stop exclusive)
+// Returns the index of the smallest element of array in range [start,stop).
+smallest:
+	ORR X12, X1, XZR
+	LSL X9, X1, #3
+	ADD X0, X0, X9
+	LDUR X9, [X0, #0]
+L1:
+	LDUR X10, [X0, #0]
+	SUBS X11, X10, X9
+	B.GE L2
+	ORR X9, X10, XZR
+	ORR X12, X1, XZR
+L2:
+	ADDI X0, X0, #8
+	ADDI X1, X1, #1
+	SUBS X11, X1, X2
+	B.GE L3
+	B L1
+L3:
+	ORR X0, X12, XZR
+	BR LR
+
+// func selection(X0 array, X1 length)
+// Uses selection sort on array of length.
+selection:
+	ADD X9, XZR, XZR
+
+	// This stack alloc includes the space needed for X0, X1, and X9 in the
+	// selection sort loop. It's fine since the smallest and swap routines
+	// don't use the stack, but in general it's bad practice to assume.
+	SUBI SP, SP, #32
+	STUR LR, [SP, #24]
+L4:
+	STUR X1, [SP, #16]
+	STUR X0, [SP, #8]
+	STUR X9, [SP, #0]
+
+	ADD X2, X1, XZR
+	ADD X1, X9, XZR
+	BL smallest
+
+	LDUR X1, [SP, #0]
+	ADD X2, X0, XZR
+	LDUR X0, [SP, #8]
+	BL swap
+
+	LDUR X9, [SP, #0]
+	LDUR X0, [SP, #8]
+	LDUR X1, [SP, #16]
+
+	ADDI X9, X9, #1
+	SUBS X10, X9, X1
+	B.LT L4
+
+	LDUR LR, [SP, #24]
+	ADDI SP, SP, #32
+	BR LR
+
+// func X0 binary_search_iterative(X0 array, X1 length, X2 x)
+// Returns the index of x in array of length, or 2^(64)-1 if not found using
+// iterative binary search.
+binary_search_iterative:
+	ADD X9, XZR, XZR
+	ADD X11, XZR, XZR
+	SUBI X1, X1, #1
+L5:
+	ADD X9, X11, X1
+	LSR X9, X9, #1
+	LSL X10, X9, #3
+	ADD X10, X0, X10
+	LDUR X10, [X10, #0]
+	SUBS X10, X10, X2
+	B.LT L6
+	B.GT L7
+	ADD X0, XZR, X9 // found
+	BR LR
+L6:
+	ADDI X11, X9, #1
+	B L8
+L7:
+	SUBI X1, X9, #1
+L8:
+	SUBS X10, X1, X11
+	B.GE L5
+	SUBI X0, XZR, #1 // not found, return 2^(64)-1
+	BR LR
+
+// func X0 binary_search_recursive(X0 array, X1 x, X2 start, X3 end)
+// Returns the index of x in array (from start to end), or 2(64)-1 if not found
+// using recursive binary search.
+binary_search_recursive:
+	SUBS X10, X3, X2
+	B.GE L9
+	SUBI X0, XZR, #1 // not found, return 2^(64)-1
+	BR LR
+L9:
+	ADD X9, X2, X3
+	LSR X9, X9, #1
+	LSL X10, X9, #3
+	ADD X10, X0, X10
+	LDUR X10, [X10, #0]
+	SUBS X10, X10, X1
+	B.LT L10
+	B.GT L11
+	ADD X0, XZR, X9 // found
+	BR LR
+L10:
+	ADDI X2, X9, #1
+	B L12
+L11:
+	SUBI X3, X9, #1
+L12:
+	SUBI SP, SP, #8
+	STUR LR, [SP, #0]
+	BL binary_search_recursive
+	LDUR LR, [SP, #0]
+	ADDI SP, SP, #8
+	BR LR
+
+// main "function"
+main:
+// Notes: the registers X19..X21 contain the "configurable" variables. The
+// default emulator memory size is sufficient for the default 64-element array.
+// If the length is increased, use -m with the value (X19+8*X20).
+
+ADDI X19, XZR, #0	// array start memory location, in bytes
+ADDI X20, XZR, #64	// array length
+ADDI X21, XZR, #34	// value to be found with binary search
+
+// STEP 1: build array
+ADD X0, XZR, X19	// array start
+ADD X1, X1, X20		// array length
+BL builder
+
+// STEP 2: sort array with selection sort
+ADD X0, XZR, X19	// array start
+ADD X1, X1, X20		// array length
+BL selection
+
+// STEP 3: iterative binary search
+ADD X0, XZR, X19	// array start
+ADD X1, XZR, X20	// array length
+ADD X2, XZR, X21	// search target
+BL binary_search_iterative
+
+ADD X22, XZR, X0	// store item's index in X22
+
+// STEP 4: recursive binary search
+ADD X0, XZR, X19	// array start
+ADD X1, XZR, X21	// search target
+ADD X2, XZR, XZR	// start index (0)
+SUBI X3, X20, #1	// end index (length - 1)
+BL binary_search_recursive
+
+// STEP 5: store difference between iterative and recursive into memory.
+SUBS X0, X22, X0
+STUR X0, [XZR, #0]	// store the final difference in memory address zero
+
+// STEP 6: program end with dump
+DUMP

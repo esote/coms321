@@ -1,0 +1,36 @@
+emu is a LEGv8 emulator.
+
+Usage: ./emu.out [-ms] file.machine
+
+NOTE: Only execution on little-endian hosts is supported.
+
+Implements ALL LEGv8 instructions except:
+	* STXR, LDXR (atomic instructions)
+	* MOVZ, MOVK (move wide instructions)
+	* LDURD, LDURS (floating point loads)
+	* FADDS, FCMPS, FDIVS, FMULS, FSUBS (32-bit floating point arithmetic)
+	* FADDD, FCMPD, FDIVD, FMULD, FSUBD (64-bit floating point arithmetic)
+
+With the following custom instructions:
+	* PRNT (print register value)
+	* PRNL (print newline)
+	* DUMP (display registers, stack and memory, and disassembly)
+	* HALT (terminate emulation)
+
+The -m option controls memory size (default 4096 bytes). The -s option controls
+stack size (default 512 bytes).
+
+At the end of emulation, the following statistics are printed:
+	* Cycle count on an unpipelined processor
+	* Cycle count on a 5-stage pipelined processor without bypassing
+	* Count of data hazards
+	* Count of control hazards
+	* Cycle count on a 5-stage pipelined processor with bypassing
+	* Count of loads
+	* Count of stores
+	* Count of stalls
+	* Count of potential bypasses
+
+NOTE: when counting cycles on a 5-state pipelined processor, control hazards are
+worth 3 cycle stalls, since the processor must stall for the ID, EX, and MEM
+stages.
